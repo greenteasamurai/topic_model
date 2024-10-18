@@ -1,16 +1,24 @@
-import spacy
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
+from utils import extract_entities as extract_entities_base, nlp
+from data_models import Entity
 
-nlp = spacy.load("en_core_web_sm")
+
+def extract_entities(text):
+    doc = nlp(text)
+    entities = [(ent.text, ent.label_) for ent in doc.ents if ent.label_ in ["PERSON", "ORG", "GPE", "WORK_OF_ART"]]
+    
+    # Filter out common false positives
+    filtered_entities = [entity for entity in entities if entity[0].lower() not in ['tis', 'twas']]
+
+    return filtered_entities
 
 def extract_important_entities(chapters, top_n=10):
     all_entities = []
     chapter_entities = []
 
     for i, chapter in enumerate(chapters):
-        doc = nlp(chapter)
-        entities = [ent.text for ent in doc.ents if ent.label_ in ["PERSON", "GPE", "LOC", "ORG"]]
+        entities = extract_entities_base(chapter)
         
         # Apply position-based weighting
         weighted_entities = []
@@ -39,7 +47,41 @@ def extract_important_entities(chapters, top_n=10):
         tfidf_score = tfidf_scores.get(entity, 0)
         combined_scores[entity] = count * (1 + tfidf_score)  # Multiply frequency by (1 + TF-IDF) to boost important entities
 
-    # Get top N entities
-    top_entities = sorted(combined_scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    # Combine entities based on case-insensitivity
+    case_insensitive_scores = {}
+    for entity, score in combined_scores.items():
+        key = entity.lower()
+        if key in case_insensitive_scores:
+            case_insensitive_scores[key]['score'] += score
+            case_insensitive_scores[key]['variants'].append(entity)
+        else:
+            case_insensitive_scores[key] = {'score': score, 'variants': [entity]}
 
-    return top_entities
+    # Choose the most common variant for each entity
+    final_entities = []
+    for key, data in case_insensitive_scores.items():
+        most_common_variant = Counter(data['variants']).most_common(1)[0][0]
+        final_entities.append((most_common_variant, data['score']))
+
+    # Get top N entities
+    top_entities = sorted(final_entities, key=lambda x: x[1], reverse=True)[:top_n]
+
+    return [
+        Entity(name=entity, count=count, entity_type=determine_entity_type(entity))
+        for entity, count in top_entities[:top_n]
+    ]
+
+def determine_entity_type(entity):
+    # Implement logic to determine if the entity is a person, place, or organization
+    # This could involve using NER from spaCy or a custom method
+    if entity[1] == "PERSON":
+        return "Person"
+    elif entity[1] == "ORG":
+        return "Organization"
+    elif entity[1] == "GPE":
+        return "Place"
+    elif entity[1] == "WORK_OF_ART":
+        return "Work of Art"
+    else:
+        return "Unknown"
+    pass
