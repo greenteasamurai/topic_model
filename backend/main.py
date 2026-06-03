@@ -8,6 +8,7 @@ from analysis.arc_detection import detect_arcs
 from analysis.character_importance import compute_character_mood_impact
 from analysis.articulation_analysis import analyze_articulation_points, analyze_temporal_articulation
 from core.utils import read_file, split_into_chapters
+from core.segmentation import split_into_segments
 from core.visualization import (
     visualize_mood_flow,
     visualize_emotion_distribution,
@@ -22,9 +23,9 @@ from core.summary_report import generate_summary_report
 _BOOKS_DIR = Path(__file__).parent.parent / "books"
 
 
-def analyze_book(text: str, title: str = "Unknown") -> Book:
-    chapters = split_into_chapters(text)
-    important_entities = extract_important_entities(chapters, top_n=15)
+def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = None, domain: str = "book") -> Book:
+    chapters = split_into_segments(text, domain)
+    important_entities = extract_important_entities(chapters, top_n=15, domain=domain)
     topic_model, themes = extract_topics(chapters)
 
     book_chapters: list[Chapter] = []
@@ -33,7 +34,7 @@ def analyze_book(text: str, title: str = "Unknown") -> Book:
             number=i + 1,
             content=chapter_text,
             mood=get_chapter_mood(chapter_text),
-            entities=extract_important_entities([chapter_text]),
+            entities=extract_important_entities([chapter_text], domain=domain),
             topics=get_chapter_topics(topic_model, chapter_text, themes),
         ))
 
@@ -55,14 +56,14 @@ def analyze_book(text: str, title: str = "Unknown") -> Book:
     book.articulation_weighted = analyze_articulation_points(book, min_cooccurrence=2)
     book.articulation_temporal = analyze_temporal_articulation(book, min_cooccurrence=2)
 
-    visualize_mood_flow(book.chapters)
-    visualize_emotion_distribution(book.chapters)
-    visualize_character_network(book.chapters, book.important_entities)
-    visualize_entity_flow(book.chapters, book.important_entities)
-    visualize_character_mood_impact(book.character_impacts)
-    visualize_character_impact_scatter(book.character_impacts)
-    visualize_articulation_structure(book, book.articulation)
-    generate_summary_report(book)
+    visualize_mood_flow(book.chapters, output_dir)
+    visualize_emotion_distribution(book.chapters, output_dir)
+    visualize_character_network(book.chapters, book.important_entities, output_dir)
+    visualize_entity_flow(book.chapters, book.important_entities, output_dir)
+    visualize_character_mood_impact(book.character_impacts, output_dir)
+    visualize_character_impact_scatter(book.character_impacts, output_dir)
+    visualize_articulation_structure(book, book.articulation, output_dir)
+    generate_summary_report(book, output_dir)
 
     return book
 

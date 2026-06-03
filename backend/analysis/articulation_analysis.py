@@ -34,6 +34,13 @@ def _build_graph(
 
 
 def _run_analysis(G: nx.Graph, min_cooccurrence: int) -> ArticulationAnalysis:
+    if G.number_of_nodes() < 2:
+        return ArticulationAnalysis(
+            articulation_points=[],
+            bridge_edges=[],
+            biconnected_components=[],
+            min_cooccurrence=min_cooccurrence,
+        )
     if not nx.is_connected(G):
         G = G.subgraph(max(nx.connected_components(G), key=len)).copy()
 

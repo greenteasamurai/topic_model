@@ -1,9 +1,12 @@
 from collections import defaultdict
-import anthropic
 from core.data_models import Book, CharacterImpact
+from core.utils import turning_point_index
+from core.llm_client import get_llm_client, MODEL_SONNET
 
-_CLIENT = anthropic.Anthropic()
-_MODEL = "claude-sonnet-4-6"
+_SYSTEM_PROMPT = (
+    "You are a rigorous narrative analyst who integrates quantitative evidence with close "
+    "reading. You write in clear, direct prose — no bullet points, no hedging."
+)
 
 
 def _quadrant(imp: CharacterImpact) -> str:
@@ -16,7 +19,7 @@ def _quadrant(imp: CharacterImpact) -> str:
     return "stabiliser"
 
 
-def _build_prompt(book: Book, domain: str) -> tuple[str, str]:
+def _build_prompt(book: Book, domain: str) -> str:
     char_rows = "\n".join(
         f"  {imp.name:<18} d={imp.cohens_d:>+6.3f}  lag={imp.lagged_delta:>+6.3f}"
         f"  n={imp.scene_count}  crisis={imp.crisis_scene_count}  [{_quadrant(imp)}]"
@@ -38,15 +41,18 @@ def _build_prompt(book: Book, domain: str) -> tuple[str, str]:
     ) or "  No distinct arcs detected"
 
     scores = [ch.mood.vader_sentiment["compound"] for ch in book.chapters]
-    if len(scores) > 1:
-        diffs = [scores[i + 1] - scores[i] for i in range(len(scores) - 1)]
-        tp = diffs.index(min(diffs))
+    tp = turning_point_index(scores)
+    if tp is not None:
         tp_names = ", ".join(e.name for e in book.chapters[tp].entities[:3])
-        turning_point = f"Between scenes {tp + 1} and {tp + 2} (featuring {tp_names})"
+        turning_point = (
+            f"Between scenes {tp + 1} and {tp + 2} (featuring {tp_names})"
+            if tp_names else f"Between scenes {tp + 1} and {tp + 2}"
+        )
     else:
         turning_point = "Insufficient data"
 
     avg_score = sum(scores) / len(scores) if scores else 0.0
+    score_range = f"{min(scores):+.3f} to {max(scores):+.3f}" if scores else "N/A"
 
     domain_frame = {
         "book": "literary work",
@@ -54,7 +60,8 @@ def _build_prompt(book: Book, domain: str) -> tuple[str, str]:
         "meeting": "meeting transcript",
     }.get(domain, "text")
 
-    static = f"""You are a rigorous narrative analyst. The following quantitative analysis was run on the {domain_frame} "{book.title}".
+    return f"""\
+You are a rigorous narrative analyst. The following quantitative analysis was run on the {domain_frame} "{book.title}".
 
 METRIC DEFINITIONS
   Cohen's d (d): how strongly a character's presence correlates with darker scenes.
@@ -80,9 +87,9 @@ SENTIMENT TURNING POINT
   {turning_point}
 
 OVERALL SENTIMENT
-  Mean: {avg_score:+.3f}  |  Range: {min(scores):+.3f} to {max(scores):+.3f}"""
+  Mean: {avg_score:+.3f}  |  Range: {score_range}
 
-    task = f"""Write 3–5 paragraphs of subtextual analysis of "{book.title}". Do not merely restate the numbers — interpret them. Address:
+Write 3–5 paragraphs of subtextual analysis of "{book.title}". Do not merely restate the numbers — interpret them. Address:
 
 1. What the character quadrant distribution reveals about the work's dramatic structure.
 2. Which characters the data marks as most consequential, and whether this confirms or complicates standard critical readings.
@@ -91,38 +98,18 @@ OVERALL SENTIMENT
 
 Cite specific metric values where they illuminate your argument. Be direct and precise."""
 
-    return static, task
-
 
 def analyze_with_llm(book: Book, domain: str = "book") -> str:
-    static_context, task = _build_prompt(book, domain)
-
-    response = _CLIENT.messages.create(
-        model=_MODEL,
-        max_tokens=1500,
-        system=[
-            {
-                "type": "text",
-                "text": "You are a rigorous narrative analyst who integrates quantitative evidence with close reading. You write in clear, direct prose — no bullet points, no hedging.",
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": static_context,
-                        "cache_control": {"type": "ephemeral"},
-                    },
-                    {
-                        "type": "text",
-                        "text": task,
-                    },
-                ],
-            }
-        ],
-    )
-
-    return response.content[0].text
+    prompt = _build_prompt(book, domain)
+    try:
+        client = get_llm_client()
+        response = client.messages.create(
+            model=MODEL_SONNET,
+            max_tokens=2048,
+            system=_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = response.content[0].text
+        return text if text else "LLM analysis unavailable: empty response"
+    except Exception as e:
+        return f"LLM analysis unavailable: {e}"

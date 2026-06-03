@@ -1,16 +1,19 @@
 from pathlib import Path
+import re
 import matplotlib.pyplot as plt
 import seaborn as sns
 import networkx as nx
 from collections import Counter
 from itertools import groupby
 from core.data_models import Chapter, Entity
+from core.utils import turning_point_index
 
 _OUT = Path(__file__).parent.parent.parent / "outputs"
 _OUT.mkdir(exist_ok=True)
 
 
-def visualize_mood_flow(chapters: list[Chapter]) -> None:
+def visualize_mood_flow(chapters: list[Chapter], output_dir: Path | None = None) -> None:
+    out = output_dir if output_dir is not None else _OUT
     scores = [ch.mood.vader_sentiment["compound"] for ch in chapters]
     scene_nums = [ch.number for ch in chapters]
 
@@ -31,9 +34,8 @@ def visualize_mood_flow(chapters: list[Chapter]) -> None:
 
     ax.plot(scene_nums, scores, marker="o", linewidth=2, color="steelblue", zorder=3)
 
-    if len(scores) > 1:
-        diffs = [scores[i + 1] - scores[i] for i in range(len(scores) - 1)]
-        tp_idx = diffs.index(min(diffs))
+    tp_idx = turning_point_index(scores)
+    if tp_idx is not None:
         tp_entities = [e.name for e in chapters[tp_idx].entities[:2]]
         tp_label = f"Turning point\n({', '.join(tp_entities)})" if tp_entities else "Turning point"
         ax.axvline(x=scene_nums[tp_idx] + 0.5, color="crimson", linestyle="--",
@@ -66,11 +68,12 @@ def visualize_mood_flow(chapters: list[Chapter]) -> None:
     if seen_arcs:
         ax.legend(loc="upper right", fontsize=8)
     plt.tight_layout()
-    plt.savefig(_OUT / "mood_flow.png", dpi=300, bbox_inches="tight")
+    plt.savefig(out / "mood_flow.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def visualize_emotion_distribution(chapters: list[Chapter]) -> None:
+def visualize_emotion_distribution(chapters: list[Chapter], output_dir: Path | None = None) -> None:
+    out = output_dir if output_dir is not None else _OUT
     emotion_counts: Counter[str] = Counter()
     for ch in chapters:
         emotion_counts.update(ch.mood.emotions)
@@ -83,11 +86,12 @@ def visualize_emotion_distribution(chapters: list[Chapter]) -> None:
     plt.ylabel("Total Score")
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig(_OUT / "emotion_distribution.png", dpi=300, bbox_inches="tight")
+    plt.savefig(out / "emotion_distribution.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def visualize_character_network(chapters: list[Chapter], important_entities: list[Entity]) -> None:
+def visualize_character_network(chapters: list[Chapter], important_entities: list[Entity], output_dir: Path | None = None) -> None:
+    out = output_dir if output_dir is not None else _OUT
     top_names = {e.name for e in important_entities}
 
     G: nx.Graph = nx.Graph()
@@ -129,28 +133,33 @@ def visualize_character_network(chapters: list[Chapter], important_entities: lis
     plt.title("Character Relationship Network")
     plt.axis("off")
     plt.tight_layout()
-    plt.savefig(_OUT / "character_network.png", dpi=300, bbox_inches="tight")
+    plt.savefig(out / "character_network.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def visualize_entity_flow(chapters: list[Chapter], important_entities: list[Entity]) -> None:
+def visualize_entity_flow(chapters: list[Chapter], important_entities: list[Entity], output_dir: Path | None = None) -> None:
+    out = output_dir if output_dir is not None else _OUT
     top_entities = [e.name for e in important_entities[:10]]
+    if not top_entities:
+        return
+    chapter_nums = [ch.number for ch in chapters]
     entity_matrix = [
-        [1 if e in {ent.name for ent in ch.entities} else 0 for e in top_entities]
-        for ch in chapters
+        [1 if e in {ent.name for ent in ch.entities} else 0 for ch in chapters]
+        for e in top_entities
     ]
     plt.figure(figsize=(15, 10))
-    sns.heatmap(entity_matrix, cmap="YlOrRd", yticklabels=top_entities)
+    sns.heatmap(entity_matrix, cmap="YlOrRd", yticklabels=top_entities, xticklabels=chapter_nums)
     plt.title("Entity Flow Across Chapters")
     plt.xlabel("Chapter")
     plt.ylabel("Entity")
     plt.tight_layout()
-    plt.savefig(_OUT / "entity_flow.png", dpi=300, bbox_inches="tight")
+    plt.savefig(out / "entity_flow.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def visualize_articulation_structure(book, analysis) -> None:
+def visualize_articulation_structure(book, analysis, output_dir: Path | None = None) -> None:
     from core.data_models import ArticulationAnalysis, Book
+    out = output_dir if output_dir is not None else _OUT
     book_typed: Book = book
     analysis_typed: ArticulationAnalysis = analysis
 
@@ -161,7 +170,7 @@ def visualize_articulation_structure(book, analysis) -> None:
     G: nx.Graph = nx.Graph()
     G.add_nodes_from(names)
     for chapter in book_typed.chapters:
-        present = [n for n in names if n.lower() in chapter.content.lower()]
+        present = [n for n in names if re.search(r"\b" + re.escape(n.lower()) + r"\b", chapter.content.lower())]
         for i, n1 in enumerate(present):
             for n2 in present[i + 1:]:
                 if G.has_edge(n1, n2):
@@ -213,12 +222,13 @@ def visualize_articulation_structure(book, analysis) -> None:
               "Red nodes: removal disconnects the network  ·  Red dashed: bridge relationships")
     plt.axis("off")
     plt.tight_layout()
-    plt.savefig(_OUT / "articulation_network.png", dpi=300, bbox_inches="tight")
+    plt.savefig(out / "articulation_network.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def visualize_character_impact_scatter(impacts: list) -> None:
+def visualize_character_impact_scatter(impacts: list, output_dir: Path | None = None) -> None:
     from core.data_models import CharacterImpact
+    out = output_dir if output_dir is not None else _OUT
     typed: list[CharacterImpact] = impacts
 
     d_vals = [imp.cohens_d for imp in typed]
@@ -268,12 +278,13 @@ def visualize_character_impact_scatter(impacts: list) -> None:
     ax.set_title("Character Impact — Associative vs. Causal")
     ax.grid(True, alpha=0.2)
     plt.tight_layout()
-    plt.savefig(_OUT / "character_impact_scatter.png", dpi=300, bbox_inches="tight")
+    plt.savefig(out / "character_impact_scatter.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def visualize_character_mood_impact(impacts: list) -> None:
+def visualize_character_mood_impact(impacts: list, output_dir: Path | None = None) -> None:
     from core.data_models import CharacterImpact
+    out = output_dir if output_dir is not None else _OUT
     impacts_typed: list[CharacterImpact] = impacts
 
     ordered = sorted(impacts_typed, key=lambda x: x.cohens_d)
@@ -302,5 +313,5 @@ def visualize_character_mood_impact(impacts: list) -> None:
     )
     ax.grid(axis="x", alpha=0.25)
     plt.tight_layout()
-    plt.savefig(_OUT / "character_mood_impact.png", dpi=300, bbox_inches="tight")
+    plt.savefig(out / "character_mood_impact.png", dpi=300, bbox_inches="tight")
     plt.close()

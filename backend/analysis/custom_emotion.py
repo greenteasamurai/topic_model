@@ -3,9 +3,8 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 
-nltk.download("punkt", quiet=True)
-nltk.download("stopwords", quiet=True)
-nltk.download("punkt_tab", quiet=True)
+for _corpus in ("punkt", "punkt_tab", "stopwords"):
+    nltk.download(_corpus, quiet=True, raise_on_error=False)
 
 EMOTION_LEXICON: dict[str, set[str]] = {
     "joy": {"happy", "joyful", "delighted", "cheerful", "excited", "glad", "pleased", "thrilled", "elated", "jubilant"},

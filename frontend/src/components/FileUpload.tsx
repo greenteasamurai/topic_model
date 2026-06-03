@@ -17,7 +17,7 @@ export default function FileUpload({ onSubmit, loading }: Props) {
   const [dragging, setDragging] = useState(false)
 
   const handleFile = (f: File) => {
-    if (f.name.endsWith('.txt')) setFile(f)
+    if (f.name.endsWith('.txt') || f.name.endsWith('.pdf')) setFile(f)
   }
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -39,13 +39,13 @@ export default function FileUpload({ onSubmit, loading }: Props) {
         <input
           id="file-input"
           type="file"
-          accept=".txt"
+          accept=".txt,.pdf"
           style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
         />
         {file
           ? <p className="file-name">📄 {file.name}</p>
-          : <p className="drop-hint">Drop a .txt file here or click to browse</p>
+          : <p className="drop-hint">Drop a .txt or .pdf file here or click to browse</p>
         }
       </div>
 

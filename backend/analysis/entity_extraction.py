@@ -11,19 +11,28 @@ _LABEL_TO_TYPE: dict[str, str] = {
     "WORK_OF_ART": "Work of Art",
 }
 
-_FALSE_POSITIVES: set[str] = {
-    "tis", "twas", "thou", "thee", "thy", "thine", "thyself", "ye",
-    "hath", "doth", "dost", "hast", "wilt", "shalt",
-    "farewell", "nay", "marry", "faith", "madam", "ho", "shall",
-    "sweet", "speak", "enter", "exit", "exeunt",
-    "lady", "friar", "sir", "lord",
-    "verona", "mantua", "rome", "italy",
+_FALSE_POSITIVES_BY_DOMAIN: dict[str, set[str]] = {
+    "book": {
+        "tis", "twas", "thou", "thee", "thy", "thine", "thyself", "ye",
+        "hath", "doth", "dost", "hast", "wilt", "shalt",
+        "farewell", "nay", "marry", "faith", "madam", "ho", "shall",
+        "sweet", "speak", "enter", "exit", "exeunt",
+        "lady", "friar", "sir", "lord",
+    },
+    "court": {
+        "honor", "counsel", "plaintiff", "defendant", "witness",
+        "testimony", "objection", "sustained", "overruled",
+    },
+    "meeting": {
+        "agenda", "attendees", "action", "item", "minutes", "follow-up",
+    },
 }
 
 _CENTRALITY_ALPHA: float = 0.45
 
 
-def extract_important_entities(chapters: list[str], top_n: int = 10) -> list[Entity]:
+def extract_important_entities(chapters: list[str], top_n: int = 10, domain: str = "book") -> list[Entity]:
+    false_positives = _FALSE_POSITIVES_BY_DOMAIN.get(domain, set())
     all_entity_names: list[str] = []
     entity_labels: dict[str, list[str]] = {}
     chapter_entity_texts: list[str] = []
@@ -33,7 +42,7 @@ def extract_important_entities(chapters: list[str], top_n: int = 10) -> list[Ent
         entities = [
             (name, label)
             for name, label in _extract_entities(chapter)
-            if name.lower() not in _FALSE_POSITIVES
+            if name.lower() not in false_positives
         ]
 
         seen_lower = list(dict.fromkeys(name.lower() for name, _ in entities))
@@ -51,7 +60,7 @@ def extract_important_entities(chapters: list[str], top_n: int = 10) -> list[Ent
             entity_labels.setdefault(name.lower(), []).append(label)
 
         all_entity_names.extend(weighted_names)
-        chapter_entity_texts.append(" ".join({name for name, _ in entities}))
+        chapter_entity_texts.append(" ".join(name for name, _ in entities))
 
     if not all_entity_names:
         return []

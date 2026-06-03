@@ -6,11 +6,12 @@ _OUT = Path(__file__).parent.parent.parent / "outputs"
 _OUT.mkdir(exist_ok=True)
 
 
-def generate_summary_report(book: Book) -> None:
-    with open(_OUT / "summary_report.md", "w", encoding="utf-8") as f:
+def generate_summary_report(book: Book, output_dir: Path | None = None) -> None:
+    out = output_dir if output_dir is not None else _OUT
+    with open(out / "summary_report.md", "w", encoding="utf-8") as f:
         f.write("# Book Analysis Summary Report\n\n")
 
-        avg_sentiment = sum(ch.mood.vader_sentiment["compound"] for ch in book.chapters) / len(book.chapters)
+        avg_sentiment = (sum(ch.mood.vader_sentiment["compound"] for ch in book.chapters) / len(book.chapters)) if book.chapters else 0.0
         f.write("## Overall Statistics\n")
         f.write(f"- Total chapters: {len(book.chapters)}\n")
         f.write(f"- Average sentiment (VADER compound): {avg_sentiment:.2f}\n")
@@ -57,4 +58,4 @@ def generate_summary_report(book: Book) -> None:
             f.write(f"- Dominant emotion: {dominant_emotion}\n")
             f.write(f"- Top entities: {', '.join(e.name for e in ch.entities[:3])}\n\n")
 
-    print(f"Summary report generated: {_OUT / 'summary_report.md'}")
+    print(f"Summary report generated: {out / 'summary_report.md'}")
