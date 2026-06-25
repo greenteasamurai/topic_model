@@ -41,9 +41,12 @@ class _DeepSeekMessages:
 
 class _DeepSeekWrapper:
     def __init__(self):
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise RuntimeError("DEEPSEEK_API_KEY environment variable is not set")
         import openai
         self._client = openai.OpenAI(
-            api_key=os.environ.get("DEEPSEEK_API_KEY"),
+            api_key=api_key,
             base_url="https://api.deepseek.com",
             timeout=60,
         )

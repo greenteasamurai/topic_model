@@ -2,9 +2,15 @@ import re
 from pathlib import Path
 import chardet
 import pdfplumber
-import spacy
+_nlp = None
 
-nlp = spacy.load("en_core_web_sm")
+
+def _get_nlp():
+    global _nlp
+    if _nlp is None:
+        import spacy
+        _nlp = spacy.load("en_core_web_sm")
+    return _nlp
 
 
 def read_pdf(file_path: str) -> str:
@@ -34,17 +40,17 @@ def split_into_chapters(text: str) -> list[str]:
 
 
 def preprocess_text(text: str) -> list[str]:
-    doc = nlp(text)
+    doc = _get_nlp()(text)
     return [token.lemma_.lower() for token in doc if not token.is_stop and not token.is_punct]
 
 
 def extract_entities(text: str) -> list[tuple[str, str]]:
-    doc = nlp(text)
+    doc = _get_nlp()(text)
     return [(ent.text, ent.label_) for ent in doc.ents if ent.label_ in ["PERSON", "ORG", "GPE", "WORK_OF_ART"]]
 
 
 def get_noun_chunks(text: str) -> list[str]:
-    doc = nlp(text)
+    doc = _get_nlp()(text)
     return [chunk.text for chunk in doc.noun_chunks]
 
 

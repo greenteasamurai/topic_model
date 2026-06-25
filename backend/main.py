@@ -7,7 +7,7 @@ from analysis.narrative_structure import identify_key_points
 from analysis.arc_detection import detect_arcs
 from analysis.character_importance import compute_character_mood_impact
 from analysis.articulation_analysis import analyze_articulation_points, analyze_temporal_articulation
-from core.utils import read_file, split_into_chapters
+from core.utils import read_file
 from core.segmentation import split_into_segments
 from core.visualization import (
     visualize_mood_flow,

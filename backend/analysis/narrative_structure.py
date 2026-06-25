@@ -28,8 +28,13 @@ def identify_key_points(chapters: list[Chapter]) -> list[tuple[int, str]]:
             key_points.append((i, f"Chapter {i+1} introduces many new entities"))
 
     for i, chapter in enumerate(chapters):
-        dominant = max(chapter.mood.emotions, key=chapter.mood.emotions.get)
-        key_points.append((i, f"Chapter {i+1} is dominated by {dominant} emotion"))
+        emotions = chapter.mood.emotions
+        dominant = max(emotions, key=emotions.get)
+        dominant_val = emotions[dominant]
+        sorted_vals = sorted(emotions.values(), reverse=True)
+        is_strongly_dominant = len(sorted_vals) >= 2 and dominant_val > sorted_vals[1] * 1.5
+        if is_strongly_dominant:
+            key_points.append((i, f"Chapter {i+1} is dominated by {dominant} emotion"))
 
     all_names = [e.name for ch in chapters for e in ch.entities]
     recurring = [name for name, cnt in Counter(all_names).items() if cnt > len(chapters) / 2]
