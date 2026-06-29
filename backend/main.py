@@ -6,6 +6,7 @@ from analysis.topic_modeling import extract_topics, get_chapter_topics
 from analysis.narrative_structure import identify_key_points
 from analysis.arc_detection import detect_arcs
 from analysis.character_importance import compute_character_mood_impact
+from analysis.role_detection import compute_character_roles
 from analysis.articulation_analysis import analyze_articulation_points, analyze_temporal_articulation
 from core.utils import read_file
 from core.segmentation import split_into_segments
@@ -23,8 +24,30 @@ from core.summary_report import generate_summary_report
 _BOOKS_DIR = Path(__file__).parent.parent / "books"
 
 
+def _subchunk_large_segments(segments: list[str], max_chars: int = 50000) -> list[str]:
+    """Subdivide any segment exceeding max_chars at paragraph boundaries."""
+    result: list[str] = []
+    for seg in segments:
+        if len(seg) <= max_chars:
+            result.append(seg)
+        else:
+            import re
+            paras = [s.strip() for s in re.split(r"\n{2,}", seg) if s.strip()]
+            chunk = ""
+            for para in paras:
+                if chunk and len(chunk) + len(para) > max_chars:
+                    result.append(chunk.strip())
+                    chunk = para
+                else:
+                    chunk += "\n\n" + para if chunk else para
+            if chunk.strip():
+                result.append(chunk.strip())
+    return result
+
+
 def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = None, domain: str = "book") -> Book:
     chapters = split_into_segments(text, domain)
+    chapters = _subchunk_large_segments(chapters)
     important_entities = extract_important_entities(chapters, top_n=15, domain=domain)
     topic_model, themes = extract_topics(chapters)
 
@@ -52,6 +75,7 @@ def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = No
     )
 
     book.character_impacts = compute_character_mood_impact(book)
+    book.character_roles = compute_character_roles(book)
     book.articulation = analyze_articulation_points(book, min_cooccurrence=1)
     book.articulation_weighted = analyze_articulation_points(book, min_cooccurrence=2)
     book.articulation_temporal = analyze_temporal_articulation(book, min_cooccurrence=2)

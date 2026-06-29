@@ -51,10 +51,20 @@ def detect_segment_strategy(sample: str, domain: str = "book") -> dict:
 
 
 def split_into_segments(text: str, domain: str = "book") -> list[str]:
-    # Fast pre-check: well-formed novel or play — skip LLM entirely
-    sample_head = text[:3000]
+    # Fast pre-check: well-formed novel or play — skip LLM entirely.
+    # Scan a wider portion than just the first 3000 chars because front
+    # matter (title page, blurbs, table of contents) may precede chapter markers.
+    head_size = min(3000, len(text))
+    sample_head = text[:head_size]
     if (len(_CHAPTER_RE.findall(sample_head)) >= 3
             or len(_ACT_RE.findall(sample_head)) >= 3):
+        from core.utils import split_into_chapters
+        return split_into_chapters(text)
+
+    # If pre-check failed on head, try the full text — some books have
+    # extensive front matter before chapter markers appear.
+    if (len(_CHAPTER_RE.findall(text)) >= 2
+            or len(_ACT_RE.findall(text)) >= 2):
         from core.utils import split_into_chapters
         return split_into_chapters(text)
 

@@ -15,6 +15,10 @@ def extract_topics(
     chapters: list[str],
     num_topics: int | None = None,
 ) -> tuple[BERTopic, list[Topic]]:
+    if len(chapters) < 3:
+        return _dummy_topics()
+    if num_topics is None:
+        num_topics = min(20, max(3, len(chapters) // 5))
     vectorizer = CountVectorizer(stop_words=_STOPWORDS)
     model = BERTopic(
         nr_topics=num_topics,
@@ -35,6 +39,11 @@ def extract_topics(
     ]
 
     return model, topics
+
+
+def _dummy_topics() -> tuple[BERTopic, list[Topic]]:
+    model = BERTopic(nr_topics=1)
+    return model, []
 
 
 def get_chapter_topics(

@@ -83,6 +83,10 @@ async def analyze(
                 "presence_avg": round(imp.presence_avg, 4),
                 "scene_count": imp.scene_count,
                 "crisis_scene_count": imp.crisis_scene_count,
+                "role": next(
+                    (cr.role for cr in (book.character_roles or []) if cr.name == imp.name),
+                    None,
+                ),
             }
             for imp in book.character_impacts
         ],

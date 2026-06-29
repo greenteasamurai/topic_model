@@ -81,6 +81,14 @@ class TemporalSnapshot:
 
 
 @dataclass
+class CharacterRole:
+    name: str
+    role: str
+    confidence: float
+    reasons: list[str]
+
+
+@dataclass
 class Book:
     title: str
     chapters: list[Chapter]
@@ -88,6 +96,7 @@ class Book:
     themes: list[Topic]
     key_points: list[tuple[int, str]]
     character_impacts: list[CharacterImpact] = field(default_factory=list)
+    character_roles: list[CharacterRole] = field(default_factory=list)
     articulation: ArticulationAnalysis | None = field(default=None)
     articulation_weighted: ArticulationAnalysis | None = field(default=None)
     articulation_temporal: list[TemporalSnapshot] = field(default_factory=list)

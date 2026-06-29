@@ -67,12 +67,20 @@ def extract_important_entities(chapters: list[str], top_n: int = 10, domain: str
 
     entity_counts: Counter[str] = Counter(all_entity_names)
 
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(chapter_entity_texts)
-    tfidf_scores: dict[str, float] = {
-        feature: float(tfidf_matrix[:, i].sum())
-        for i, feature in enumerate(vectorizer.get_feature_names_out())
-    }
+    # Only run TF-IDF if at least one chapter had entities
+    has_any_entity_text = any(t.strip() for t in chapter_entity_texts)
+    if has_any_entity_text:
+        vectorizer = TfidfVectorizer()
+        try:
+            tfidf_matrix = vectorizer.fit_transform(chapter_entity_texts)
+            tfidf_scores: dict[str, float] = {
+                feature: float(tfidf_matrix[:, i].sum())
+                for i, feature in enumerate(vectorizer.get_feature_names_out())
+            }
+        except ValueError:
+            tfidf_scores = {}
+    else:
+        tfidf_scores = {}
 
     combined_scores: dict[str, float] = {
         name: count * (1 + tfidf_scores.get(name.lower(), 0.0))

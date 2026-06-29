@@ -36,7 +36,21 @@ def split_into_chapters(text: str) -> list[str]:
         for act in acts[1:]:
             scenes = re.split(r"(?:\n\s*)SCENE [IVX]+", act)
             chapters.extend(scenes)
-    return [chapter.strip() for chapter in chapters if chapter.strip()]
+
+    stripped = [chapter.strip() for chapter in chapters if chapter.strip()]
+
+    # Merge segments that are too small to be real chapters — likely
+    # table-of-contents entries or single-line section headers.
+    merged: list[str] = []
+    for s in stripped:
+        txt = s.strip()
+        if not txt:
+            continue
+        if merged and (len(txt.splitlines()) <= 2 and len(txt) < 200):
+            merged[-1] += "\n\n" + txt
+        else:
+            merged.append(txt)
+    return merged if merged else stripped
 
 
 def preprocess_text(text: str) -> list[str]:
