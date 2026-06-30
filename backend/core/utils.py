@@ -54,16 +54,29 @@ def split_into_chapters(text: str) -> list[str]:
 
 
 def preprocess_text(text: str) -> list[str]:
+    if len(text) > 900000:
+        text = text[:900000]
     doc = _get_nlp()(text)
     return [token.lemma_.lower() for token in doc if not token.is_stop and not token.is_punct]
 
 
 def extract_entities(text: str) -> list[tuple[str, str]]:
+    if len(text) > 900000:
+        parts = []
+        chunk_size = 50000
+        for i in range(0, len(text), chunk_size):
+            doc = _get_nlp()(text[i:i + chunk_size])
+            offset = i
+            parts.extend((ent.text, ent.label_) for ent in doc.ents
+                         if ent.label_ in ["PERSON", "ORG", "GPE", "WORK_OF_ART"])
+        return parts
     doc = _get_nlp()(text)
     return [(ent.text, ent.label_) for ent in doc.ents if ent.label_ in ["PERSON", "ORG", "GPE", "WORK_OF_ART"]]
 
 
 def get_noun_chunks(text: str) -> list[str]:
+    if len(text) > 900000:
+        text = text[:900000]
     doc = _get_nlp()(text)
     return [chunk.text for chunk in doc.noun_chunks]
 
