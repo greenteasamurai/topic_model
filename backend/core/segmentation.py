@@ -80,6 +80,21 @@ def split_into_segments(text: str, domain: str = "book") -> list[str]:
         if len(segments) >= 2:
             return segments
 
-    # Paragraph fallback
-    segments = [s.strip() for s in re.split(r"\n{2,}", text) if len(s.strip()) > 200]
+    # Paragraph fallback: segment at paragraph boundaries, merging small
+    # paragraphs to avoid producing thousands of tiny segments.
+    paras = [s.strip() for s in re.split(r"\n{2,}", text) if s.strip()]
+    segments: list[str] = []
+    buffer = ""
+    for para in paras:
+        if buffer and len(buffer) + len(para) > 5000:
+            segments.append(buffer.strip())
+            buffer = para
+        else:
+            buffer += "\n\n" + para if buffer else para
+    if buffer.strip():
+        segments.append(buffer.strip())
+
+    if len(segments) < 2:
+        segments = [s.strip() for s in re.split(r"\n{2,}", text) if s.strip()]
+
     return segments if segments else [text.strip()]

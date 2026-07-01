@@ -24,7 +24,7 @@ from core.summary_report import generate_summary_report
 _BOOKS_DIR = Path(__file__).parent.parent / "books"
 
 
-def _subchunk_large_segments(segments: list[str], max_chars: int = 50000) -> list[str]:
+def _subchunk_large_segments(segments: list[str], max_chars: int = 200000) -> list[str]:
     """Subdivide any segment exceeding max_chars at paragraph boundaries."""
     result: list[str] = []
     for seg in segments:
