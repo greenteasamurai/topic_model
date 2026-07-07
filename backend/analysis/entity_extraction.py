@@ -1,7 +1,7 @@
 from collections import Counter
 import networkx as nx
 from sklearn.feature_extraction.text import TfidfVectorizer
-from core.utils import extract_entities as _extract_entities
+from core.utils import extract_entities as _extract_entities, batch_extract_entities as _batch_extract
 from core.data_models import Entity
 
 _LABEL_TO_TYPE: dict[str, str] = {
@@ -38,10 +38,11 @@ def extract_important_entities(chapters: list[str], top_n: int = 10, domain: str
     chapter_entity_texts: list[str] = []
     cooccurrence: nx.Graph = nx.Graph()
 
-    for chapter in chapters:
+    all_entities = _batch_extract(chapters)
+    for entities_raw in all_entities:
         entities = [
             (name, label)
-            for name, label in _extract_entities(chapter)
+            for name, label in entities_raw
             if name.lower() not in false_positives
         ]
 

@@ -60,18 +60,50 @@ def preprocess_text(text: str) -> list[str]:
     return [token.lemma_.lower() for token in doc if not token.is_stop and not token.is_punct]
 
 
+_ner_cache: dict[str, list[tuple[str, str]]] = {}
+
+
 def extract_entities(text: str) -> list[tuple[str, str]]:
+    cached = _ner_cache.get(text)
+    if cached is not None:
+        return cached
     if len(text) > 900000:
         parts = []
         chunk_size = 50000
         for i in range(0, len(text), chunk_size):
             doc = _get_nlp()(text[i:i + chunk_size])
-            offset = i
             parts.extend((ent.text, ent.label_) for ent in doc.ents
                          if ent.label_ in ["PERSON", "ORG", "GPE", "WORK_OF_ART"])
+        _ner_cache[text] = parts
         return parts
     doc = _get_nlp()(text)
-    return [(ent.text, ent.label_) for ent in doc.ents if ent.label_ in ["PERSON", "ORG", "GPE", "WORK_OF_ART"]]
+    result = [(ent.text, ent.label_) for ent in doc.ents if ent.label_ in ["PERSON", "ORG", "GPE", "WORK_OF_ART"]]
+    _ner_cache[text] = result
+    return result
+
+
+def batch_extract_entities(texts: list[str]) -> list[list[tuple[str, str]]]:
+    """Extract entities from multiple texts using spaCy's batched pipeline."""
+    uncached: list[tuple[int, str]] = []
+    results: list[list[tuple[str, str]] | None] = [None] * len(texts)
+
+    for i, text in enumerate(texts):
+        cached = _ner_cache.get(text)
+        if cached is not None:
+            results[i] = cached
+        else:
+            uncached.append((i, text))
+
+    if uncached:
+        nlp = _get_nlp()
+        for idx, text in uncached:
+            doc = nlp(text)
+            entities = [(ent.text, ent.label_) for ent in doc.ents
+                        if ent.label_ in ["PERSON", "ORG", "GPE", "WORK_OF_ART"]]
+            _ner_cache[text] = entities
+            results[idx] = entities
+
+    return [r for r in results if r is not None]
 
 
 def get_noun_chunks(text: str) -> list[str]:

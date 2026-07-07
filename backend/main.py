@@ -45,9 +45,27 @@ def _subchunk_large_segments(segments: list[str], max_chars: int = 200000) -> li
     return result
 
 
+def _cap_segments(segments: list[str], max_segments: int = 100) -> list[str]:
+    """Cap the number of segments to prevent extreme runtime on long books.
+    Merges segments pairwise until under the limit."""
+    if len(segments) <= max_segments:
+        return segments
+    result = list(segments)
+    while len(result) > max_segments:
+        merged: list[str] = []
+        for i in range(0, len(result), 2):
+            if i + 1 < len(result):
+                merged.append(result[i] + "\n\n" + result[i + 1])
+            else:
+                merged.append(result[i])
+        result = merged
+    return result
+
+
 def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = None, domain: str = "book") -> Book:
     chapters = split_into_segments(text, domain)
     chapters = _subchunk_large_segments(chapters)
+    chapters = _cap_segments(chapters)
     important_entities = extract_important_entities(chapters, top_n=15, domain=domain)
     topic_model, themes = extract_topics(chapters)
 
