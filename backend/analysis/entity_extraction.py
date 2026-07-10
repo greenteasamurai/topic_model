@@ -31,8 +31,41 @@ _FALSE_POSITIVES_BY_DOMAIN: dict[str, set[str]] = {
 _CENTRALITY_ALPHA: float = 0.45
 
 
-def extract_important_entities(chapters: list[str], top_n: int = 10, domain: str = "book") -> list[Entity]:
+def _build_whitelist_matcher(known_characters: list[str] | None):
+    if not known_characters:
+        return None
+    token_sets = [(w.lower(), set(t for t in w.lower().split() if len(t) > 1)) for w in known_characters]
+    return token_sets
+
+
+def _token_overlap(extracted: str, wl_name: str, wl_tokens: set[str]) -> bool:
+    if extracted == wl_name:
+        return True
+    ext_tokens = set(t for t in extracted.lower().split() if len(t) > 1)
+    if not ext_tokens or not wl_tokens:
+        return False
+    overlap = ext_tokens & wl_tokens
+    if overlap:
+        return True
+    for wt in wl_tokens:
+        for et in ext_tokens:
+            shorter = wt if len(wt) < len(et) else et
+            longer = et if len(wt) < len(et) else wt
+            if len(shorter) >= 3 and shorter[:3] == longer[:3]:
+                return True
+    return False
+
+
+def _matches_whitelist(extracted: str, wl) -> bool:
+    for wl_name, wl_tokens in wl:
+        if _token_overlap(extracted, wl_name, wl_tokens):
+            return True
+    return False
+
+
+def extract_important_entities(chapters: list[str], top_n: int = 10, domain: str = "book", known_characters: list[str] | None = None) -> list[Entity]:
     false_positives = _FALSE_POSITIVES_BY_DOMAIN.get(domain, set())
+    whitelist = _build_whitelist_matcher(known_characters)
     all_entity_names: list[str] = []
     entity_labels: dict[str, list[str]] = {}
     chapter_entity_texts: list[str] = []
@@ -40,11 +73,19 @@ def extract_important_entities(chapters: list[str], top_n: int = 10, domain: str
 
     all_entities = _batch_extract(chapters)
     for entities_raw in all_entities:
-        entities = [
-            (name, label)
-            for name, label in entities_raw
-            if name.lower() not in false_positives
-        ]
+        if whitelist is not None:
+            entities = [
+                (name, label)
+                for name, label in entities_raw
+                if name.lower() not in false_positives
+                and _matches_whitelist(name, whitelist)
+            ]
+        else:
+            entities = [
+                (name, label)
+                for name, label in entities_raw
+                if name.lower() not in false_positives
+            ]
 
         seen_lower = list(dict.fromkeys(name.lower() for name, _ in entities))
         for i, n1 in enumerate(seen_lower):

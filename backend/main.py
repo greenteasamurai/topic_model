@@ -63,10 +63,12 @@ def _cap_segments(segments: list[str], max_segments: int = 100) -> list[str]:
 
 
 def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = None, domain: str = "book") -> Book:
-    chapters = split_into_segments(text, domain, title=title)
+    result = split_into_segments(text, domain, title=title)
+    chapters = result.segments
+    known_characters = result.characters
     chapters = _subchunk_large_segments(chapters)
     chapters = _cap_segments(chapters)
-    important_entities = extract_important_entities(chapters, top_n=15, domain=domain)
+    important_entities = extract_important_entities(chapters, top_n=15, domain=domain, known_characters=known_characters or None)
     topic_model, themes = extract_topics(chapters)
 
     book_chapters: list[Chapter] = []
@@ -75,7 +77,7 @@ def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = No
             number=i + 1,
             content=chapter_text,
             mood=get_chapter_mood(chapter_text),
-            entities=extract_important_entities([chapter_text], domain=domain),
+            entities=extract_important_entities([chapter_text], domain=domain, known_characters=known_characters or None),
             topics=get_chapter_topics(topic_model, chapter_text, themes),
         ))
 
