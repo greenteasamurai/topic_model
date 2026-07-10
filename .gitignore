@@ -6,3 +6,4 @@ node_modules/
 outputs/
 frontend/dist/
 frontend/src/assets/hero.png
+books/*.pdf

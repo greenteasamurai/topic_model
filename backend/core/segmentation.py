@@ -1,45 +1,51 @@
 import re
 import json
 from core.llm_client import get_llm_client, MODEL_HAIKU
+from core.preclean import preclean_text
 
 _CHAPTER_RE = re.compile(r"(?:\n\s*)(?:Chapter|CHAPTER)\s+\w+")
 _ACT_RE = re.compile(r"(?:\n\s*)ACT [IVX]+")
 
-_DETECT_PROMPT = """\
-You are a document structure analyzer. Below is the opening portion of a {domain_label} document.
+_STRUCTURE_PROMPT = """\
+You are a literary structure expert. Given a book title and a text sample, \
+return the Python regex pattern that matches chapter or section boundaries \
+in this specific book. Use your knowledge of the book's known structure \
+and/or the evidence in the provided text sample.
 
-Your task: identify strings that appear VERBATIM in this text and serve as natural section \
-boundaries (e.g. "DIRECT EXAMINATION", "Agenda Item 2:", "CHAPTER THREE").
+The regex will be passed directly to Python's re.split(pattern, text, flags=re.IGNORECASE). \
+It should split on the section marker itself (the delimiter is included in the split). \
+For example, for a book with chapters labelled "CHAPTER I", "CHAPTER II" etc., \
+return the regex: CHAPTER\\s+[IVXLCDM]+
 
 Rules:
-- Only return strings that appear exactly in the text below, character-for-character
-- Return between 2 and 10 delimiter strings
-- If the text has no consistent section boundaries, return an empty delimiters list
+- Return exactly ONE regex pattern that will split the book into its natural sections
+- If the book has a hierarchical structure, split at the most granular useful level \
+  (chapters or scenes, not sub-headings)
+- If you do not recognize the book and the text sample shows no clear structure, \
+  return an empty regex string
 - Respond with valid JSON only — no markdown, no explanation
 
 Format:
-{{"doc_type": "<brief type>", "segment_label": "<what each segment represents>", "delimiters": ["<string1>", "<string2>"]}}
+{"regex": "<python regex pattern with proper escaping>", "min_segment_chars": <int or null>}
 
-TEXT:
-"""
-
-_DOMAIN_LABELS: dict[str, str] = {
-    "book": "literary",
-    "court": "legal / court transcript",
-    "meeting": "meeting transcript",
-}
+min_segment_chars: if set, discard any segments shorter than this after splitting \
+(set to null if not applicable). Use this when you know the book has short chapter \
+title pages (e.g. "THE PRIEST'S TALE:") that should be merged into the next segment."""
 
 
-def detect_segment_strategy(sample: str, domain: str = "book") -> dict:
-    domain_label = _DOMAIN_LABELS.get(domain, domain)
-    prompt = _DETECT_PROMPT.format(domain_label=domain_label) + f"\n<document>\n{sample}\n</document>"
+def query_book_structure(title: str, sample: str) -> dict:
+    prompt = (
+        _STRUCTURE_PROMPT
+        + f"\n\nBook title: {title}\n\nText sample (opening lines):\n<sample>\n{sample}\n</sample>"
+    )
     try:
         client = get_llm_client()
         response = client.messages.create(
             model=MODEL_HAIKU,
-            max_tokens=200,
+            max_tokens=300,
             system="",
             messages=[{"role": "user", "content": prompt}],
+            timeout=15,
         )
         raw = response.content[0].text.strip()
         if raw.startswith("```"):
@@ -47,13 +53,30 @@ def detect_segment_strategy(sample: str, domain: str = "book") -> dict:
             raw = re.sub(r"\n?```$", "", raw)
         return json.loads(raw)
     except Exception:
-        return {"doc_type": "unknown", "segment_label": "segment", "delimiters": []}
+        return {"regex": "", "min_segment_chars": None}
 
 
-def split_into_segments(text: str, domain: str = "book") -> list[str]:
-    # Fast pre-check: well-formed novel or play — skip LLM entirely.
-    # Scan a wider portion than just the first 3000 chars because front
-    # matter (title page, blurbs, table of contents) may precede chapter markers.
+def _apply_llm_regex(text: str, pattern: str, min_chars: int | None) -> list[str] | None:
+    try:
+        segments = re.split(pattern, text, flags=re.IGNORECASE)
+    except re.error:
+        return None
+    segments = [s.strip() for s in segments if s.strip()]
+    if len(segments) < 2:
+        return None
+    if min_chars is not None:
+        segments = [s for s in segments if len(s) >= min_chars]
+        if len(segments) < 2:
+            return None
+    small_fraction = sum(1 for s in segments if len(s) < 200) / len(segments)
+    if small_fraction > 0.5:
+        return None
+    return segments
+
+
+def split_into_segments(text: str, domain: str = "book", title: str = "Unknown") -> list[str]:
+    text = preclean_text(text)
+
     head_size = min(3000, len(text))
     sample_head = text[:head_size]
     if (len(_CHAPTER_RE.findall(sample_head)) >= 3
@@ -61,27 +84,21 @@ def split_into_segments(text: str, domain: str = "book") -> list[str]:
         from core.utils import split_into_chapters
         return split_into_chapters(text)
 
-    # If pre-check failed on head, try the full text — some books have
-    # extensive front matter before chapter markers appear.
     if (len(_CHAPTER_RE.findall(text)) >= 2
             or len(_ACT_RE.findall(text)) >= 2):
         from core.utils import split_into_chapters
         return split_into_chapters(text)
 
-    # LLM-detected delimiters
     sample = "\n".join(text.splitlines()[:150])[:4000]
-    strategy = detect_segment_strategy(sample, domain=domain)
+    structure = query_book_structure(title, sample)
 
-    delimiters = strategy.get("delimiters") or []
-    if delimiters:
-        pattern = "|".join(re.escape(d) for d in delimiters)
-        segments = re.split(pattern, text)
-        segments = [s.strip() for s in segments if s.strip()]
-        if len(segments) >= 2:
-            return segments
+    regex = structure.get("regex") or ""
+    min_chars = structure.get("min_segment_chars")
+    if regex:
+        llm_segments = _apply_llm_regex(text, regex, min_chars)
+        if llm_segments:
+            return llm_segments
 
-    # Paragraph fallback: segment at paragraph boundaries, merging small
-    # paragraphs to avoid producing thousands of tiny segments.
     paras = [s.strip() for s in re.split(r"\n{2,}", text) if s.strip()]
     segments: list[str] = []
     buffer = ""

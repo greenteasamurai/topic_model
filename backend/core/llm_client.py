@@ -48,7 +48,7 @@ class _DeepSeekWrapper:
         self._client = openai.OpenAI(
             api_key=api_key,
             base_url="https://api.deepseek.com",
-            timeout=60,
+            timeout=10,
         )
         self.messages = _DeepSeekMessages(self._client)
 
