@@ -4,7 +4,10 @@ from nltk.corpus import stopwords
 from collections import Counter
 
 for _corpus in ("punkt", "punkt_tab", "stopwords"):
-    nltk.download(_corpus, quiet=True, raise_on_error=False)
+    try:
+        nltk.download(_corpus, quiet=True)
+    except Exception:
+        pass
 
 EMOTION_LEXICON: dict[str, set[str]] = {
     "joy": {"happy", "joyful", "delighted", "cheerful", "excited", "glad", "pleased", "thrilled", "elated", "jubilant"},

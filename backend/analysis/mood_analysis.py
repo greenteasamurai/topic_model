@@ -4,7 +4,10 @@ from textblob import TextBlob
 from analysis.custom_emotion import custom_get_emotion
 from core.data_models import Mood, VaderSentiment, TextBlobSentiment
 
-nltk.download("vader_lexicon", quiet=True)
+try:
+    nltk.download("vader_lexicon", quiet=True)
+except Exception:
+    pass
 
 
 def get_chapter_mood(chapter: str) -> Mood:

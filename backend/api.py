@@ -12,7 +12,10 @@ from main import analyze_book
 from narrative_llm import analyze_with_llm
 
 for _corpus in ("punkt", "punkt_tab", "stopwords", "vader_lexicon"):
-    nltk.download(_corpus, quiet=True, raise_on_error=False)
+    try:
+        nltk.download(_corpus, quiet=True, raise_on_error=True)
+    except Exception:
+        pass
 
 _OUTPUTS = Path(__file__).parent.parent / "outputs"
 _OUTPUTS.mkdir(exist_ok=True)
