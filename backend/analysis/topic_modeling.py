@@ -3,6 +3,7 @@ from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 from analysis.preprocess import preprocess_chapter
 from core.utils import preprocess_text
 from core.data_models import Topic
+from core.embedding_model import _get_model as _get_embedder
 
 _ARCHAIC = {
     "thou", "thee", "thy", "thine", "thyself", "tis", "twas",
@@ -25,6 +26,7 @@ def extract_topics(
         language="english",
         min_topic_size=2,
         vectorizer_model=vectorizer,
+        embedding_model=_get_embedder(),
     )
     model.fit_transform(chapters)
 

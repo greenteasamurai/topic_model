@@ -68,6 +68,8 @@ def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = No
     known_characters = result.characters
     chapters = _subchunk_large_segments(chapters)
     chapters = _cap_segments(chapters)
+
+    import gc
     important_entities = extract_important_entities(chapters, top_n=15, domain=domain, known_characters=known_characters or None)
     topic_model, themes = extract_topics(chapters)
 
@@ -80,6 +82,8 @@ def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = No
             entities=extract_important_entities([chapter_text], domain=domain, known_characters=known_characters or None),
             topics=get_chapter_topics(topic_model, chapter_text, themes),
         ))
+
+    gc.collect()
 
     arc_labels = detect_arcs([ch.content for ch in book_chapters])
     for chapter, label in zip(book_chapters, arc_labels):

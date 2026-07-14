@@ -1,15 +1,7 @@
 from sentence_transformers import SentenceTransformer
 import umap
 import hdbscan
-
-_MODEL: SentenceTransformer | None = None
-
-
-def _get_model() -> SentenceTransformer:
-    global _MODEL
-    if _MODEL is None:
-        _MODEL = SentenceTransformer("all-MiniLM-L6-v2")
-    return _MODEL
+from core.embedding_model import _get_model
 
 
 def detect_arcs(chapters: list[str], min_cluster_size: int = 2) -> list[int]:
