@@ -24,7 +24,7 @@ from core.summary_report import generate_summary_report
 _BOOKS_DIR = Path(__file__).parent.parent / "books"
 
 
-def _subchunk_large_segments(segments: list[str], max_chars: int = 200000) -> list[str]:
+def _subchunk_large_segments(segments: list[str], max_chars: int = 50000) -> list[str]:
     """Subdivide any segment exceeding max_chars at paragraph boundaries."""
     result: list[str] = []
     for seg in segments:
@@ -45,7 +45,7 @@ def _subchunk_large_segments(segments: list[str], max_chars: int = 200000) -> li
     return result
 
 
-def _cap_segments(segments: list[str], max_segments: int = 100) -> list[str]:
+def _cap_segments(segments: list[str], max_segments: int = 50) -> list[str]:
     """Cap the number of segments to prevent extreme runtime on long books.
     Merges segments pairwise until under the limit."""
     if len(segments) <= max_segments:
@@ -70,6 +70,7 @@ def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = No
     chapters = _cap_segments(chapters)
 
     import gc
+    from core.utils import clear_ner_cache
     important_entities = extract_important_entities(chapters, top_n=15, domain=domain, known_characters=known_characters or None)
     topic_model, themes = extract_topics(chapters)
 
@@ -83,6 +84,7 @@ def analyze_book(text: str, title: str = "Unknown", output_dir: Path | None = No
             topics=get_chapter_topics(topic_model, chapter_text, themes),
         ))
 
+    clear_ner_cache()
     gc.collect()
 
     arc_labels = detect_arcs([ch.content for ch in book_chapters])

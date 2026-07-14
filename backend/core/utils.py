@@ -113,6 +113,10 @@ def get_noun_chunks(text: str) -> list[str]:
     return [chunk.text for chunk in doc.noun_chunks]
 
 
+def clear_ner_cache() -> None:
+    _ner_cache.clear()
+
+
 def turning_point_index(compound_scores: list[float]) -> int | None:
     """Return 0-based index of the scene just before the steepest sentiment drop, or None."""
     if len(compound_scores) < 2:
